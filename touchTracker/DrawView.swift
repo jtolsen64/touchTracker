@@ -9,8 +9,10 @@
 import UIKit
 
 class DrawView: UIView {
+    
     var currentLines = [NSValue: Line]()
     var finishedLines = [Line]()
+    var selectedLineIndex: Int?
     
     @IBInspectable var finishedLineColor: UIColor = UIColor.black {
         didSet {
@@ -28,6 +30,40 @@ class DrawView: UIView {
         didSet {
             setNeedsDisplay()
         }
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        
+        let doubleTapRecognizer = UITapGestureRecognizer(target: self,
+                                action: #selector(DrawView.doubleTap(_:)))
+        doubleTapRecognizer.numberOfTapsRequired = 2
+        doubleTapRecognizer.delaysTouchesBegan = true
+        addGestureRecognizer(doubleTapRecognizer)
+        
+        let tapRecognizer =
+            UITapGestureRecognizer(target: self, action: #selector(DrawView.tap(_:)))
+        tapRecognizer.delaysTouchesBegan = true
+        tapRecognizer.require(toFail: doubleTapRecognizer)
+        addGestureRecognizer(tapRecognizer)
+    }
+    
+    func doubleTap(_ gestureRecognizer: UIGestureRecognizer) {
+        print("Recognized a double tap")
+        
+        selectedLineIndex = nil
+        currentLines.removeAll()
+        finishedLines.removeAll()
+        setNeedsDisplay()
+    }
+    
+    func tap(_ gestureRecognizer: UIGestureRecognizer) {
+        print("Recognized a tap")
+        
+        let point = gestureRecognizer.location(in: self)
+        selectedLineIndex = indexOfLine(at: point)
+        
+        setNeedsDisplay()
     }
     
     func stroke(_ line: Line) {
@@ -50,6 +86,34 @@ class DrawView: UIView {
         for(_, line) in currentLines {
             stroke(line)
         }
+        
+        if let index = selectedLineIndex {
+            UIColor.green.setStroke()
+            let selectedLine = finishedLines[index]
+            stroke(selectedLine)
+        }
+    }
+    
+    func indexOfLine(at point: CGPoint) -> Int? {
+        //Find a line close to point
+        for(index, line) in finishedLines.enumerated() {
+            let begin = line.begin
+            let end = line.end
+            
+            //Check a few points on the line
+            for t in stride(from: CGFloat(0), to: 1.0, by: 0.05) {
+                let x = begin.x + ((end.x - begin.x) * t)
+                let y = begin.y + ((end.y - begin.y) * t)
+                
+                //If the tapped point is within 20 points, let's return this line
+                if hypot(x-point.x, y-point.y) < 20.0 {
+                    return index
+                }
+            }
+        }
+        
+        //If nothing ia close enough to tapped point, then we did not select a line
+        return nil
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
